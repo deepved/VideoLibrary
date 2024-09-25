@@ -1,0 +1,41 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+    margin-bottom: 60px;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+video {
+    max-width: 100%; /* Make video responsive */
+    height: auto; /* Maintain aspect ratio */
+    display: block; /* Center align video */
+    margin: 0 auto; /* Center video */
+}
+
+@media (max-width: 400px) {
+    video {
+        width: 100%; /* Full width on small screens */
+    }
+}
+
+.margin-left {
+    margin-left: 50px; /* Adjust the value as needed */
+}
+

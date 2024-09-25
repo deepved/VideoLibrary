@@ -1,0 +1,295 @@
+﻿@model IEnumerable<dynamic>
+@{
+    ViewData["Title"] = "Video Library";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .hidden {
+            display: none;
+        }
+
+        video {
+            width: 100%;
+            max-width: 600px;
+        }
+
+        /* Ensure table borders are visible */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            border: 1px solid #dee2e6; /* Light grey border */
+            padding: 8px; /* Add some padding */
+            text-align: left; /* Align text to the left */
+        }
+
+        th {
+            background-color: #f8f9fa; /* Light grey background for header */
+        }
+
+        tr.clickable-row:hover {
+            background-color: #e9ecef; /* Light grey background on hover */
+            cursor: pointer; /* Change cursor to pointer */
+        }
+
+        .active-button {
+            background-color: #0056b3; /* Darker blue for active state */
+            color: white; /* White text */
+        }
+
+        .error-message {
+            background-color: #ff4500; /* Orange Red */
+            color: black; /* Black text */
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+    </style>
+    <script>
+        let currentVideo = null;
+
+        function showUploadForm() {
+            const uploadFormSection = document.getElementById("uploadFormSection");
+            const catalogueSection = document.getElementById("catalogueSection");
+            const videoPlayer = document.getElementById("videoPlayer");
+            const errorMessage = document.getElementById('errorMessage');
+            const uploadBanner = document.getElementById('uploadBanner');
+
+            uploadBanner.classList.add('hidden'); // Hide banner initially
+
+            if (uploadFormSection) {
+                uploadFormSection.classList.remove("hidden");
+            }
+            if (catalogueSection) {
+                catalogueSection.classList.add("hidden");
+            }
+            if (videoPlayer) {
+                videoPlayer.classList.add("hidden"); // Hide video player
+            }
+            if (errorMessage) {
+                errorMessage.classList.add('hidden');
+            }
+
+            // Remove active class from the buttons
+            document.getElementById("viewCatalogueButton")?.classList.remove("active-button");
+            document.getElementById("uploadVideosButton")?.classList.add("active-button");
+        }
+
+        function showCatalogue() {
+            const uploadFormSection = document.getElementById("uploadFormSection");
+            const catalogueSection = document.getElementById("catalogueSection");
+            const videoPlayer = document.getElementById("videoPlayer");
+            const errorMessage = document.getElementById('errorMessage');
+
+            if (uploadFormSection) {
+                uploadFormSection.classList.add("hidden");
+            }
+            if (catalogueSection) {
+                catalogueSection.classList.remove("hidden");
+            }
+            if (videoPlayer) {
+                videoPlayer.classList.remove("hidden"); // Show video player
+            }
+            if (errorMessage) {
+                errorMessage.classList.add('hidden');
+            }
+
+            // Remove active class from the buttons
+            document.getElementById("uploadVideosButton")?.classList.remove("active-button");
+            document.getElementById("viewCatalogueButton")?.classList.add("active-button");
+        }
+
+        function playVideo(videoUrl) {
+            if (currentVideo) {
+                currentVideo.pause();
+            }
+            currentVideo = document.getElementById("videoPlayer");
+            currentVideo.src = videoUrl;
+            currentVideo.play();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            attachClickListeners();
+        });
+
+        function attachClickListeners() {
+            document.querySelectorAll('.clickable-row').forEach(row => {
+                row.addEventListener('click', function () {
+                    const fileName = this.dataset.filename;
+                    const videoPlayer = document.getElementById('videoPlayer');
+                    videoPlayer.src = '/media/' + fileName; // Adjust path if necessary
+                    videoPlayer.play();
+                });
+            });
+        }
+
+        async function uploadVideos() {
+            const filesInput = document.getElementById('videoFiles');
+            const files = filesInput.files;
+            const uploadBanner = document.getElementById('uploadBanner');
+
+            uploadBanner.classList.add('hidden'); // Hide the banner initially
+
+            if (files.length === 0) {
+                uploadBanner.innerText = 'Please select at least one file to upload.';
+                uploadBanner.classList.remove('hidden');
+                return;
+            }
+
+            const invalidFiles = Array.from(files).filter(file => !file.name.endsWith('.mp4'));
+            if (invalidFiles.length > 0) {
+                const errorMessage = 'Only MP4 files are allowed for upload: ' + invalidFiles.map(f => f.name).join(', ');
+                document.getElementById('errorMessage').innerText = errorMessage;
+                document.getElementById('errorMessage').classList.remove('hidden');
+                return;
+            }
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('videoFiles', files[i]);
+            }
+
+            document.getElementById('uploadStatus').innerText = 'Uploading...';
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    document.getElementById('uploadStatus').innerText = result.message;
+
+                    // Fetch updated video files and display them
+                    await fetchUpdatedVideoFiles();
+
+                    // Hide the banner after successful upload
+                    const noVideosBanner = document.getElementById('noVideosBanner');
+                    if (noVideosBanner) {
+                        noVideosBanner.classList.add('hidden');
+                    }
+
+                    // Clear the file input
+                    filesInput.value = '';
+
+                    // Show the catalogue section and hide the upload form
+                    showCatalogue();
+                } else {
+                    const error = await response.text();
+                    document.getElementById('uploadStatus').innerText = 'Upload failed: ' + error;
+                }
+            } catch (error) {
+                document.getElementById('uploadStatus').innerText = 'An error occurred: ' + error.message;
+            }
+        }
+
+        async function fetchUpdatedVideoFiles() {
+            try {
+                const response = await fetch('/Home/GetVideoFilesJson');
+                const videoFiles = await response.json();
+
+                // Debugging output to check what is returned
+                console.log('Fetched video files:', videoFiles);
+
+                const tbody = document.querySelector('#videoTable tbody');
+                tbody.innerHTML = ''; // Clear existing rows
+
+                if (videoFiles.length > 0) {
+                    videoFiles.forEach(file => {
+                        const row = document.createElement('tr');
+                        row.setAttribute('data-filename', file.fileName);
+                        row.classList.add('clickable-row');
+                        row.innerHTML = `<td>${file.fileName}</td><td>${(file.fileSize / 1024).toFixed(2)}</td>`; // Convert to KB
+                        tbody.appendChild(row);
+                    });
+
+                    // Clear the upload status message
+                    document.getElementById('uploadStatus').innerText = '';
+
+                    // Reattach click event listeners to new rows
+                    attachClickListeners();
+
+                } else {
+                    tbody.innerHTML = `<tr><td colspan="2">No videos available.</td></tr>`;
+                }
+            } catch (error) {
+                console.error('Error fetching video files:', error);
+            }
+        }
+
+    </script>
+</head>
+<body>
+    <div class="container mt-5">
+
+        <div id="uploadBanner" class="error-message hidden text-center"></div>
+
+        @if (Model == null || !Model.Any())
+        {
+                <div id="noVideosBanner" class="alert alert-warning text-center" role="alert">
+                    No video files available. Click the Upload button to load files.
+                </div>
+        }
+        <h1 class="text-center">Video Library</h1>
+
+        <button id="uploadVideosButton" onclick="showUploadForm()" class="btn btn-primary">Upload Videos</button>
+        <button id="viewCatalogueButton" onclick="showCatalogue()" class="btn btn-primary">View Catalogue</button>
+
+        <div id="uploadFormSection" class="hidden mt-4">           
+            <form id="uploadForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <input type="file" id="videoFiles" name="videoFiles" accept=".mp4" multiple required class="form-control-file" />
+                </div>
+                <button type="button" id="uploadButton" class="btn btn-primary" onclick="uploadVideos()">Upload</button>
+            </form>
+            <div id="uploadStatus" class="mt-4 text-center"></div>
+            <div id="errorMessage" class="error-message hidden"></div> 
+        </div>
+
+        <div id="catalogueSection" class="hidden mt-4">
+            <table class="table table-bordered" id="videoTable">
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th>File Size (KB)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model != null && Model.Any())
+                    {
+                        foreach (var file in Model)
+                        {
+                                    <tr data-filename="@file.FileName" class="clickable-row">
+                                        <td>@file.FileName</td>
+                                        <td>@file.FileSize</td>
+                                    </tr>
+                        }
+                    }
+                    else
+                    {
+                            <tr>
+                                <td colspan="2">No videos available.</td>
+                            </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div class="mt-4">
+                <video id="videoPlayer" controls class="hidden">
+                    <source src="" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
